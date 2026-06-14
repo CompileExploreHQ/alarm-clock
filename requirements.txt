@@ -1,0 +1,4 @@
+click>=8.0
+rich>=13.0
+# playsound is optional — install only if you want audio playback:
+# playsound>=1.3.0
