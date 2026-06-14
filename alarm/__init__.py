@@ -1,0 +1,4 @@
+"""alarm-clock — A Python CLI alarm manager."""
+
+__version__ = "1.0.0"
+__author__ = "Alarm Clock"
