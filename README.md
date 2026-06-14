@@ -1,299 +1,188 @@
-# alarm-clock
+# ⏰ Alarm Clock CLI
 
-A clean, persistent CLI alarm manager written in Python 3.10+.
-
-```
-alarm add  --time 08:00 --name "Standup" --recur weekdays
-alarm add  --time 13:00 --name "Lunch"   --recur daily
-alarm list
-alarm run          # foreground daemon; fires sound + message when time arrives
-```
+A feature-rich terminal alarm clock built with Python, `click`, and `rich`.
 
 ---
 
 ## Features
 
-| Feature | Detail |
-|---|---|
-| Flexible time input | `HH:MM`, `HH:MM:SS`, 12-hour (`9:30am`, `2:15 PM`) |
-| Named alarms | Every alarm has a unique label |
-| Recurrence | `once`, `daily`, `weekdays` (Mon-Fri) |
-| Persistence | Saved to `~/.alarms.json`; survives restarts |
-| Hot-reload daemon | `add`/`delete` in a second terminal window takes effect immediately |
-| Sound + banner | Plays a generated chime; falls back to terminal bell on silent systems |
-| Snooze | CLI command delays an alarm by N minutes |
-
----
-
-## Requirements
-
-- **Python 3.10 or later** — `python --version` to check
-- **pip** — comes bundled with Python
-
-> **Windows users:** Run all commands in **PowerShell** or **Command Prompt**.
-> Use `;` to chain commands in PowerShell (not `&&`).
+- **Named alarms** — give each alarm a meaningful name
+- **Persistent** — alarms saved to `~/.alarms.json` (survives restarts)
+- **Flexible time input** — `07:30`, `7:30am`, `"in 45m"`, `"in 1h30m"`
+- **Recurring alarms** — `daily`, `weekdays`, `weekends`, or `mon,wed,fri`
+- **One-shot alarms** — auto-delete after firing with `--once`
+- **Live countdown** — refreshing rich table while running
+- **Alarm banner** — full-screen ASCII art when alarm fires
+- **Snooze & dismiss** — interactive `[S]/[D]/[Q]` prompt during alarm
+- **Missed alarm warnings** — notified on startup if alarms fired while closed
+- **Sound support** — plays a `.wav` file via `playsound`, falls back to terminal bell
 
 ---
 
 ## Installation
 
-### Step 1 — Clone the repository
-
-```
-git clone <repo-url>
+```bash
+# 1. Enter the project directory
 cd alarm-clock
-```
 
-### Step 2 — (Recommended) Create a virtual environment
-
-This keeps the project's dependencies isolated from your system Python.
-
-**Windows (PowerShell):**
-```
+# 2. Create a virtual environment
 python -m venv .venv
+
+# 3. Activate it
+#    Windows (PowerShell)
 .venv\Scripts\Activate.ps1
-```
-
-**macOS / Linux:**
-```
-python3 -m venv .venv
+#    Windows (CMD)
+.venv\Scripts\activate.bat
+#    macOS / Linux
 source .venv/bin/activate
-```
 
-You should see `(.venv)` appear at the start of your terminal prompt. Run
-all subsequent commands inside this activated environment.
-
-> **PowerShell execution policy error?** If you see `cannot be loaded because
-> running scripts is disabled`, run this once and then retry:
-> ```
-> Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
-> ```
-
-### Step 3 — Install dependencies
-
-```
+# 4. Install dependencies
 pip install -r requirements.txt
 ```
 
-### Step 4 — Install the `alarm` shell command
+> **Tip:** You'll see `(.venv)` in your prompt when the environment is active.  
+> To deactivate at any time, run `deactivate`.
 
-```
-pip install -e .
-```
+> **Python 3.10+** required.
 
-This registers `alarm` as a command available anywhere in your terminal
-(not just from the project folder).
+### Audio — no extra install needed
 
-**Verify it worked:**
-```
-alarm --help
-```
+Sound works out of the box on all platforms using native OS utilities:
 
-You should see the list of subcommands. If you get a "not recognized" error,
-see the troubleshooting section below.
+| OS | Audio method | Requires |
+|---|---|---|
+| Windows | `winsound.Beep()` | Nothing — Python stdlib |
+| macOS | `afplay` + system `.aiff` | Nothing — built into macOS |
+| Linux | `paplay` / `aplay` / `pw-play` | PulseAudio / ALSA / PipeWire (usually pre-installed) |
 
----
+If none of the above work in your environment, optionally install `playsound`
+and drop an `alarm.wav` file inside `alarm_clock/`:
 
-## Quick start
-
-```
-alarm add --time 08:00 --name "Morning" --recur daily
-alarm list
-alarm run
+```bash
+pip install playsound
+# then add alarm_clock/alarm.wav
 ```
 
-Open a second terminal and add more alarms while the daemon is running --
-they take effect immediately without restarting.
+
 
 ---
 
 ## Usage
 
-### `alarm add`
+### Add alarms
 
-```
-alarm add --time 08:00 --name "Morning"               # once, today
-alarm add --time 09:30 --name "Standup" --recur weekdays
-alarm add --time 13:00 --name "Lunch"   --recur daily
-alarm add --time 9:00am --name "Meeting"              # 12-hour format
-alarm add --time "2:30 PM" --name "Call"
-```
+```bash
+# 24h format, repeat on weekdays
+python main.py add 07:30 --name "Morning standup" --repeat weekdays
 
-| Option | Short | Required | Description |
-|---|---|---|---|
-| `--time` | `-t` | yes | When to fire |
-| `--name` | `-n` | yes | Unique label |
-| `--recur` | `-r` | no | `once` (default), `daily`, `weekdays` |
+# 12h format, daily (default)
+python main.py add 7:30am --name "Gym"
 
-**Notes:**
-- `once` alarms that have already passed for today are rejected with a clear
-  error. If you meant tomorrow, use `--recur daily`.
-- Alarm names must be unique (case-insensitive). Delete the existing alarm
-  first if you want to reuse a name.
+# Relative time, one-shot (auto-deletes after firing)
+python main.py add "in 45m" --name "Take a break" --once
 
-### `alarm list`
+# Custom days
+python main.py add 09:00 --name "Mon/Wed workout" --repeat mon,wed
 
-```
-alarm list
+# Weekend alarm
+python main.py add 10:00 --name "Lazy morning" --repeat weekends
 ```
 
-Shows every alarm with its ID, next fire time, and status.
+### Manage alarms
 
-### `alarm delete`
+```bash
+# List all alarms (rich table)
+python main.py list
 
-```
-alarm delete --name "Lunch"       # by name (case-insensitive)
-alarm delete --id a1b2c3d4        # by full ID
-alarm delete --id a1b2            # by ID prefix (must be unambiguous)
-```
+# Delete by ID (or ID prefix)
+python main.py delete a1b2c3d4
 
-### `alarm snooze`
+# Enable / disable (toggle)
+python main.py toggle a1b2c3d4
 
-```
-alarm snooze --name "Morning"             # snooze 5 minutes (default)
-alarm snooze --name "Morning" --minutes 10
-```
-
-Creates a one-time `<name> (snoozed)` alarm N minutes from now.
-The original alarm is left intact.
-
-### `alarm run`
-
-```
-alarm run
+# Snooze for 10 minutes
+python main.py snooze a1b2c3d4 --minutes 10
 ```
 
-Starts the foreground daemon. Blocks until `Ctrl-C`. While it is running,
-you can add, delete, or snooze alarms from another terminal -- changes are
-picked up automatically within 1 second.
+### Run the daemon
+
+```bash
+python main.py run
+```
+
+While running:
+- Live countdown table refreshes every second
+- When an alarm fires: full-screen banner + bell sound
+- Press **`S`** to snooze (5 min), **`D`** to dismiss, **`Q`** to quit
+- Press **Ctrl+C** to stop gracefully
 
 ---
 
-## Troubleshooting
+## Time formats
 
-### `alarm` is not recognized after `pip install -e .`
+| Input | Meaning |
+|---|---|
+| `07:30` | 7:30 AM (24h) |
+| `19:00` | 7:00 PM (24h) |
+| `7:30am` | 7:30 AM (12h) |
+| `7:30pm` | 7:30 PM (12h) |
+| `in 45m` | 45 minutes from now |
+| `in 2h` | 2 hours from now |
+| `in 1h30m` | 1 hour 30 minutes from now |
 
-The `alarm` script is installed into your Python environment's `Scripts`
-(Windows) or `bin` (macOS/Linux) folder. If that folder is not on your
-`PATH`, the command won't be found.
+## Repeat values
 
-**Fix 1 (recommended) -- use a virtual environment (see Step 2 above).**
-Activating a venv automatically puts its `Scripts`/`bin` on your `PATH`.
-
-**Fix 2 -- find and add the Scripts folder manually (Windows):**
-```
-python -c "import sysconfig; print(sysconfig.get_path('scripts'))"
-```
-Copy the path that prints (e.g. `C:\Users\you\AppData\Local\Programs\Python\Python313\Scripts`),
-then add it to your `PATH` via *System Properties > Environment Variables*.
-
-**Fix 3 -- skip the install, run directly:**
-```
-python alarm_cli.py --help
-python alarm_cli.py add --time 08:00 --name "Morning"
-python alarm_cli.py run
-```
-
-### `pip install -e .` fails with `BackendUnavailable` or build errors
-
-Make sure you have a recent version of pip and setuptools:
-```
-pip install --upgrade pip setuptools
-pip install -e .
-```
-
-### Audio does not play
-
-`playsound3` uses the OS-native audio system (WinMM on Windows, afplay on
-macOS, aplay/paplay on Linux). If playback fails the alarm falls back to a
-visible terminal banner + a bell character -- the alarm will never fire
-silently.
-
-On Linux, install one of: `pulseaudio-utils`, `alsa-utils`, or `ffmpeg`.
-
-### `Set-ExecutionPolicy` is needed on Windows
-
-If PowerShell blocks the venv activation script:
-```
-Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
-```
-Then re-run `.venv\Scripts\Activate.ps1`.
+| Value | Fires on |
+|---|---|
+| `daily` | Every day (default) |
+| `once` | Once, then auto-deletes |
+| `weekdays` | Monday – Friday |
+| `weekends` | Saturday – Sunday |
+| `mon,wed,fri` | Specific days (any combination) |
 
 ---
 
-## How it works
+## Data storage
 
-### Project structure
+Alarms are stored in `~/.alarms.json` as plain JSON — you can inspect or edit this file directly.
+
+```json
+[
+  {
+    "id": "a1b2c3d4",
+    "name": "Morning standup",
+    "time": "07:30",
+    "repeat": "weekdays",
+    "enabled": true,
+    "snoozed_until": null,
+    "created_at": "2026-06-14T08:00:00.000000"
+  }
+]
+```
+
+---
+
+## Project structure
 
 ```
 alarm-clock/
-+-- alarm/
-|   +-- __init__.py       # version
-|   +-- models.py         # Alarm dataclass, RecurrenceType, next_fire_time()
-|   +-- store.py          # JSON load/save (atomic writes)
-|   +-- audio.py          # playsound3 -> bell fallback; WAV auto-generation
-|   +-- scheduler.py      # daemon loop
-|   +-- cli.py            # click commands
-+-- sounds/               # alert.wav (auto-generated on first run)
-+-- alarm_cli.py          # entry-point shim (use if not installed via pip)
-+-- pyproject.toml
-+-- requirements.txt
-+-- README.md
+├── main.py              # CLI entry point (click)
+├── requirements.txt
+├── README.md
+└── alarm_clock/
+    ├── __init__.py
+    ├── storage.py       # Alarm dataclass + JSON persistence
+    ├── scheduler.py     # Run loop + alarm firing logic
+    ├── display.py       # Rich tables + ASCII art banner
+    ├── audio.py         # Sound playback + bell fallback
+    └── utils.py         # Time string parsing
 ```
-
-### Design decisions
-
-**`click` over `argparse`**
-This app has five distinct subcommands. `click`'s decorator model makes
-each command a self-contained, independently testable function. `argparse`
-subparsers would require significant boilerplate for the same result.
-
-**`playsound3` over `pygame`**
-`pygame` is a game engine that happens to play audio -- far too heavy for
-a CLI tool. `playsound3` is the maintained fork of `playsound`, wraps the
-OS-native audio APIs (WinMM on Windows, afplay on macOS, aplay on Linux),
-and plays a file with a single function call.
-
-**WAV generated from stdlib, not bundled**
-The alert chime is generated programmatically using Python's `wave` and
-`math` modules on first run. This keeps the repository free of binary
-assets and avoids any licensing questions.
-
-**Hot-reload daemon**
-The daemon re-reads `~/.alarms.json` every 0.5 s. This means `alarm add`
-and `alarm delete` in a second terminal window take effect without
-restarting the daemon -- a useful property when adding alarms on the fly.
-
-**Atomic JSON writes**
-The store is written to a sibling temp file and renamed into place
-(`os.replace()`). A crash mid-write cannot produce a half-written file
-that breaks subsequent reads.
-
-**+-2 s fire window**
-With a 0.5 s sleep interval, the worst-case scheduling jitter is ~0.5 s.
-The +-2 s window absorbs that plus any system clock jitter. A fired alarm
-is tracked by `(alarm_id, calendar-date)` so it never fires more than once
-per day regardless of daemon restarts.
 
 ---
 
-## Known limitations
+## Tips
 
-- **Foreground only.** The daemon runs in the terminal and stops when the
-  window is closed. There is no OS-level background service. For a
-  production tool you would wrap `alarm run` with systemd (Linux),
-  launchd (macOS), or Task Scheduler (Windows).
-
-- **Local time only.** All times are in the system's local timezone.
-  There is no per-alarm timezone support.
-
-- **Single-user.** The store lives in the user's home directory
-  (`~/.alarms.json`); multi-user or shared stores are out of scope.
-
-- **No interactive snooze.** Pressing a key while the alarm is ringing
-  does not snooze it. Use `alarm snooze --name <NAME>` from a second
-  terminal window immediately after the alarm fires.
-
-- **Audio on headless systems.** If no audio device is present,
-  `playsound3` will fail and the fallback is a terminal bell + visible
-  banner. The alarm is never silently missed.
+- Use ID prefix shortcuts: if your alarm ID is `a1b2c3d4`, typing `a1b2` is enough as long as it's unambiguous
+- Alarms with `--once` are automatically removed after you dismiss them
+- `snoozed_until` is cleared on the next successful dismiss
+- The alarm fires within a ±30s window of its scheduled time, so a 1-second poll loop never misses a minute boundary
